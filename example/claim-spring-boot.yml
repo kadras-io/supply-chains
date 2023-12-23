@@ -1,0 +1,13 @@
+---
+apiVersion: app.kadras.io/v1alpha1
+kind: Workload
+metadata:
+  name: band-service
+  labels:
+    app: band-service
+spec:
+  serviceAccountName: supply-chain
+  image: ghcr.io/thomasvitale/band-service:v1
+  #image: ghcr.io/thomasvitale/workloads/band-service-default@sha256:136eb5b450578957ecaa1ffe412839e9c4117218bc664f40d34c54f2c7698629
+  application:
+    framework: spring-boot

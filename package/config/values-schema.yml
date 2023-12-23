@@ -1,0 +1,5 @@
+#@data/values-schema
+---
+
+#@schema/desc "The default `ServiceAccount` used by the supply chain."
+service_account: supply-chain

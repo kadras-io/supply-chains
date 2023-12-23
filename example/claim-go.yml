@@ -1,0 +1,10 @@
+---
+apiVersion: app.kadras.io/v1alpha1
+kind: Workload
+metadata:
+  name: helloworld-go
+  labels:
+    app: helloworld-go
+spec:
+  serviceAccountName: supply-chain
+  image: ghcr.io/knative/helloworld-go

@@ -1,0 +1,15 @@
+---
+apiVersion: packaging.carvel.dev/v1alpha1
+kind: PackageInstall
+metadata:
+  name: crossplane
+  namespace: tests
+  annotations:
+    kapp.k14s.io/change-group: crossplane
+    kapp.k14s.io/change-rule.serviceaccount: delete before deleting serviceaccount
+spec:
+  serviceAccountName: kadras-install-sa
+  packageRef:
+    refName: crossplane.packages.kadras.io
+    versionSelection:
+      constraints: 1.14.3
