@@ -7,31 +7,36 @@ metadata:
   name: supply-chain-image-to-url-basic
   labels:
     crossplane.io/xrd: xworkloads.app.kadras.io
-    app.kadras.io/workload-type: web
+  annotations:
+    crossplane.io/composition-schema-aware-validation-mode: strict
 spec:
 
   compositeTypeRef:
     apiVersion: app.kadras.io/v1alpha1
     kind: XWorkload
-  
-  writeConnectionSecretsToNamespace: crossplane-system
 
   environment:
     environmentConfigs:
       - type: Selector
         selector:
+          mode: Multiple
+          minMatch: 0
           matchLabels:
             - type: FromCompositeFieldPath
               key: app.kadras.io/language
               valueFromFieldPath: spec.application.language
       - type: Selector
         selector:
+          mode: Multiple
+          minMatch: 0
           matchLabels:
             - type: FromCompositeFieldPath
               key: app.kadras.io/framework
               valueFromFieldPath: spec.application.framework
       - type: Selector
         selector:
+          mode: Multiple
+          minMatch: 0
           matchLabels:
             - key: app.kadras.io/live-update
               type: Value
@@ -45,17 +50,22 @@ spec:
     - name: metadata
       patches:
         - type: FromCompositeFieldPath
+          fromFieldPath: spec.claimRef.name
+          toFieldPath: spec.forProvider.manifest.metadata.labels["app.kubernetes.io/name"]
+        - type: FromCompositeFieldPath
           fromFieldPath: metadata.labels
           toFieldPath: spec.forProvider.manifest.metadata.labels
           policy:
             mergeOptions:
               appendSlice: true
+              keepMapValues: true
         - type: FromCompositeFieldPath
           fromFieldPath: metadata.annotations
           toFieldPath: spec.forProvider.manifest.metadata.annotations
           policy:
             mergeOptions:
               appendSlice: true
+              keepMapValues: true
 
   resources:
     - name: app-config
@@ -69,9 +79,6 @@ spec:
             manifest:
               apiVersion: v1
               kind: ConfigMap
-              metadata:
-                labels:
-                  app.kadras.io/supply-chain: supply-chain-web-run
               data:
                 application.yml: |
                   # No default properties
@@ -86,17 +93,13 @@ spec:
             - type: string
               string:
                 type: Format
-                fmt: "%s-config"
+                fmt: "%s-app-config"
         - type: FromCompositeFieldPath
           fromFieldPath: spec.claimRef.namespace
           toFieldPath: spec.forProvider.manifest.metadata.namespace
         #! Metadata
-        - type: FromCompositeFieldPath
-          fromFieldPath: spec.claimRef.name
-          toFieldPath: spec.forProvider.manifest.metadata.labels["app.kubernetes.io/name"]
-        - type: FromCompositeFieldPath
-          fromFieldPath: spec.claimRef.name
-          toFieldPath: spec.forProvider.manifest.metadata.labels["app.kadras.io/workload"]
+        - type: PatchSet
+          patchSetName: metadata
         #! Data
         - type: FromEnvironmentFieldPath
           fromFieldPath: properties
@@ -113,9 +116,6 @@ spec:
             manifest:
               apiVersion: serving.knative.dev/v1
               kind: Service
-              metadata:
-                labels:
-                  app.kadras.io/supply-chain: supply-chain-web-run
               spec:
                 template:
                   spec:
@@ -126,8 +126,6 @@ spec:
                         imagePullPolicy: Always
                         ports:
                           - containerPort: 8080
-                            name: http
-                            protocol: TCP
                         securityContext:
                           allowPrivilegeEscalation: false
                           capabilities:
@@ -158,22 +156,28 @@ spec:
         #! Metadata
         - type: PatchSet
           patchSetName: metadata
-        - type: FromCompositeFieldPath
-          fromFieldPath: spec.deployment.annotations
-          toFieldPath: spec.forProvider.manifest.spec.template.metadata.annotations
-          policy:
-            mergeOptions:
-              appendSlice: true
+        #! Pod Metadata
         - type: FromEnvironmentFieldPath
           fromFieldPath: annotations
           toFieldPath: spec.forProvider.manifest.spec.template.metadata.annotations
           policy:
             mergeOptions:
               appendSlice: true
-        #! Pod
+              keepMapValues: true
         - type: FromCompositeFieldPath
-          fromFieldPath: spec.claimRef.name
-          toFieldPath: spec.forProvider.manifest.metadata.labels["app.kubernetes.io/name"]
+          fromFieldPath: spec.deployment.annotations
+          toFieldPath: spec.forProvider.manifest.spec.template.metadata.annotations
+          policy:
+            mergeOptions:
+              appendSlice: true
+              keepMapValues: true
+        #! Pod Spec
+        - type: FromEnvironmentFieldPath
+          fromFieldPath: env
+          toFieldPath: spec.forProvider.manifest.spec.template.spec.containers[0].env
+          policy:
+            mergeOptions:
+              appendSlice: true
         - type: FromCompositeFieldPath
           fromFieldPath: spec.deployment.env
           toFieldPath: spec.forProvider.manifest.spec.template.spec.containers[0].env
@@ -208,7 +212,7 @@ spec:
             - type: string
               string:
                 type: Format
-                fmt: "%s-config"
+                fmt: "%s-app-config"
         #! Status
         - type: ToCompositeFieldPath
           fromFieldPath: spec.forProvider.manifest.spec.template.spec.containers[0].image
@@ -216,3 +220,99 @@ spec:
         - type: ToCompositeFieldPath
           fromFieldPath: status.atProvider.manifest.status.url
           toFieldPath: status.url
+
+    #! The following is HORRIBLE! Crossplane is not the right tool for this. Move it out to functions!
+
+    - name: service-binding-1
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha1
+        kind: Object
+        spec:
+          readiness:
+            policy: DeriveFromObject
+          forProvider:
+            manifest:
+              apiVersion: servicebinding.io/v1beta1
+              kind: ServiceBinding
+              spec:
+                service:
+                  apiVersion: v1
+                  kind: Secret
+                  name: ""
+                workload:
+                  apiVersion: serving.knative.dev/v1
+                  kind: Service
+                  name: ""
+          providerConfigRef:
+            name: supply-chain-kubernetes-provider
+      patches:
+        #! General
+        - type: CombineFromComposite
+          combine:
+            variables:
+              - fromFieldPath: spec.claimRef.name
+              - fromFieldPath: spec.serviceClaims[0].name
+            strategy: string
+            string:
+              fmt: "service-binding-%s-%s"
+          toFieldPath: spec.forProvider.manifest.metadata.name
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.claimRef.namespace
+          toFieldPath: spec.forProvider.manifest.metadata.namespace
+        #! Metadata
+        - type: PatchSet
+          patchSetName: metadata
+        #! Spec
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.serviceClaims[0].name
+          toFieldPath: spec.forProvider.manifest.spec.service.name
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.claimRef.name
+          toFieldPath: spec.forProvider.manifest.spec.workload.name
+    
+    - name: service-binding-2
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha1
+        kind: Object
+        spec:
+          readiness:
+            policy: DeriveFromObject
+          forProvider:
+            manifest:
+              apiVersion: servicebinding.io/v1beta1
+              kind: ServiceBinding
+              spec:
+                service:
+                  apiVersion: v1
+                  kind: Secret
+                  name: ""
+                workload:
+                  apiVersion: serving.knative.dev/v1
+                  kind: Service
+                  name: ""
+          providerConfigRef:
+            name: supply-chain-kubernetes-provider
+      patches:
+        #! General
+        - type: CombineFromComposite
+          combine:
+            variables:
+              - fromFieldPath: spec.claimRef.name
+              - fromFieldPath: spec.serviceClaims[1].name
+            strategy: string
+            string:
+              fmt: "service-binding-%s-%s"
+          toFieldPath: spec.forProvider.manifest.metadata.name
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.claimRef.namespace
+          toFieldPath: spec.forProvider.manifest.metadata.namespace
+        #! Metadata
+        - type: PatchSet
+          patchSetName: metadata
+        #! Spec
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.serviceClaims[1].name
+          toFieldPath: spec.forProvider.manifest.spec.service.name
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.claimRef.name
+          toFieldPath: spec.forProvider.manifest.spec.workload.name

@@ -8,11 +8,13 @@ The `image-to-url-basic` supply chain provides a simple path consisting of the f
 
 * Apply workload conventions based on language and framework;
 * Define and configure the workload manifests with Knative;
+* Configure Service Bindings in case service claims are defined;
 * Deploy the workload using Crossplane.
 
 ```mermaid
 flowchart LR;
     A-->B(Apply Conventions);
     B-->C(Configure Deployment);
-    C-->D(Deploy Workload);
+    C-->D(Define Service Bindings);
+    D-->E(Deploy Workload);
 ```

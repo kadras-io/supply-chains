@@ -6,5 +6,4 @@ metadata:
   labels:
     app: helloworld-go
 spec:
-  serviceAccountName: supply-chain
   image: ghcr.io/knative/helloworld-go

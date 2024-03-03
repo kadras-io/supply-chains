@@ -4,7 +4,6 @@ kind: CompositeResourceDefinition
 metadata:
   name: xworkloads.app.kadras.io
 spec:
-
   group: app.kadras.io
   names:
     kind: XWorkload
@@ -201,6 +200,29 @@ spec:
                             x-kubernetes-int-or-string: true
 
                 #! Add serviceClaims (array with .name, .ref => .apiVersion, .kind, .name)
+                serviceClaims:
+                  description: ServiceClaims to be bound through ServiceBindings.
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      ref:
+                        type: object
+                        properties:
+                          apiVersion:
+                            type: string
+                          kind:
+                            type: string
+                          name:
+                            type: string
+                       #! required:
+                       #!   - apiVersion
+                       #!   - kind
+                       #!   - name
+                    required:
+                      - name
 
                 #! Add configuration (array with .name, .content)
 

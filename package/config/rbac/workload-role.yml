@@ -41,6 +41,11 @@ rules:
     resources: ["images"]
     verbs: ["get", "list", "watch", "create", "patch", "update", "delete", "deletecollection"]
 
+  #! Service Binding
+  - apiGroups: ["servicebinding.io"]
+    resources: ["servicebindings"]
+    verbs: ["get", "list", "watch", "create", "patch", "update", "delete", "deletecollection"]
+
   #! Tekton
   - apiGroups: ["tekton.dev"]
     resources: ["pipelineruns", "taskruns"]
